@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+    <h1>Personal Finance Tracker</h1>
+
+    <h2>Current Balance: GHS {{ balance }}</h2>
+
+    <h3>Add Income</h3>
+    <form action="{{ url_for('add_income') }}" method="POST">
+        <input type="number" name="amount" placeholder="Enter amount" required>
+        <button type="submit">Add Income</button>
+    </form>
+
+    <h3>Add Expense</h3>
+    <form action="{{ url_for('add_expense') }}" method="POST">
+        <input type="number" name="amount" placeholder="Enter amount" required>
+        <button type="submit">Add Expense</button>
+    </form>
+
+    <h3>Transactions</h3>
+    <table border="1">
+        <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Amount</th>
+        </tr>
+        {% for transaction in transactions %}
+        <tr>
+            <td>{{ transaction[0] }}</td>
+            <td>{{ transaction[1] }}</td>
+            <td>GHS {{ transaction[2] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+
+</html>
