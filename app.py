@@ -1,6 +1,7 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for # type: ignore
 import os
 from datetime import datetime
+import sqlite3
 
 app = Flask(__name__)
 
@@ -8,37 +9,87 @@ app = Flask(__name__)
 BALANCE_FILE = "data.txt"
 TRANSACTIONS_FILE = "transactions.txt"
 
+# Function to initialize the database
+def init_db():
+    conn = sqlite3.connect("finance_tracker.db")  # Database file
+    cursor = conn.cursor()
+
+    # Create transactions table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL,
+            type TEXT NOT NULL,
+            amount REAL NOT NULL
+        )
+    ''')
+
+    # Create balance table (optional)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS balance (
+            id INTEGER PRIMARY KEY,
+            amount REAL NOT NULL
+        )
+    ''')
+
+    # Ensure balance table has one entry
+    cursor.execute("SELECT COUNT(*) FROM balance")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO balance (id, amount) VALUES (1, 0)")
+
+    conn.commit()
+    conn.close()
+
+# Call this function when the app starts
+init_db()
+
 # Read balance from file
 def read_balance():
-    if os.path.exists(BALANCE_FILE):
-        with open(BALANCE_FILE, "r") as file:
-            return float(file.read().strip() or 0.0)
-    return 0.0
+    conn = sqlite3.connect("finance_tracker.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT amount FROM balance WHERE id=1")
+    balance = cursor.fetchone()[0]
+    
+    conn.close()
+    return balance
+
 
 # Write balance to file
-def write_balance(balance):
-    with open(BALANCE_FILE, "w") as file:
-        file.write(str(balance))
+def write_balance(amount):
+    conn = sqlite3.connect("finance_tracker.db")
+    cursor = conn.cursor()
+
+    cursor.execute("UPDATE balance SET amount = ? WHERE id = 1", (amount,))
+    
+    conn.commit()
+    conn.close()
+
 
 # Load transactions from file
 def load_transactions():
-    transactions = []
-    if os.path.exists(TRANSACTIONS_FILE):
-        with open(TRANSACTIONS_FILE, "r") as file:
-            for line in file:
-                parts = line.strip().split(" | ")
-                if len(parts) > 1:
-                    timestamp, details = parts
-                    transaction_type = details.split(": GHS ")[0]
-                    amount = details.split(": GHS ")[1]
-                    transactions.append((timestamp, transaction_type, amount))
+    conn = sqlite3.connect("finance_tracker.db")
+    cursor = conn.cursor()
+    
+    cursor.execute("SELECT date, type, amount FROM transactions ORDER BY id DESC")
+    transactions = cursor.fetchall()
+    
+    conn.close()
     return transactions
+
 
 # Add transaction to file
 def log_transaction(transaction_type, amount):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    with open(TRANSACTIONS_FILE, "a") as file:
-        file.write(f"{timestamp} | {transaction_type}: GHS {amount}\n")
+    conn = sqlite3.connect("finance_tracker.db")
+    cursor = conn.cursor()
+    
+    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    cursor.execute("INSERT INTO transactions (date, type, amount) VALUES (?, ?, ?)", 
+                   (date, transaction_type, amount))
+    
+    conn.commit()
+    conn.close()
+
 
 # Home route
 @app.route('/')
@@ -49,27 +100,36 @@ def home():
 
 
 # Add Income
-@app.route('/add_income', methods=['POST'])
+@app.route("/add_income", methods=["POST"])
 def add_income():
-    amount = float(request.form.get("amount"))
-    balance = read_balance() + amount
-    write_balance(balance)
+    amount = float(request.form["amount"])
+    
+    # Update balance
+    balance = read_balance()
+    new_balance = balance + amount
+    write_balance(new_balance)
+
+    # Log transaction
     log_transaction("Income", amount)
+    
     return redirect(url_for("index"))
 
+
 # Add Expense
-@app.route('/add_expense', methods=['POST'])
+@app.route("/add_expense", methods=["POST"])
 def add_expense():
-    amount = float(request.form.get("amount"))
+    amount = float(request.form["amount"])
+    
+    # Update balance
     balance = read_balance()
-    
-    if amount > balance:
-        return "Insufficient balance!", 400
-    
-    balance -= amount
-    write_balance(balance)
+    new_balance = balance - amount
+    write_balance(new_balance)
+
+    # Log transaction
     log_transaction("Expense", amount)
+    
     return redirect(url_for("index"))
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=False)
