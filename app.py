@@ -42,10 +42,11 @@ def log_transaction(transaction_type, amount):
 
 # Home route
 @app.route('/')
-def index():
+def home():
     balance = read_balance()
     transactions = load_transactions()
-    return render_template("index.html", balance=balance, transactions=transactions)
+    return render_template('index.html', balance=balance, transactions=transactions)
+
 
 # Add Income
 @app.route('/add_income', methods=['POST'])

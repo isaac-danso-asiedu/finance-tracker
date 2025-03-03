@@ -1,45 +1,59 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends 'base.html' %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance Tracker</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
+{% block title %}Dashboard | Finance Tracker{% endblock %}
 
-<body>
-    <h1>Personal Finance Tracker</h1>
+{% block content %}
+<div class="text-center">
+    <h1 class="my-3">Personal Finance Tracker</h1>
+    <h2 class="text-success">Current Balance: GHS {{ balance }}</h2>
+</div>
 
-    <h2>Current Balance: GHS {{ balance }}</h2>
+<!-- Add Income Form -->
+<div class="card my-3">
+    <div class="card-body">
+        <h3 class="card-title">Add Income</h3>
+        <form action="{{ url_for('add_income') }}" method="POST">
+            <div class="input-group mb-3">
+                <input type="number" name="amount" class="form-control" placeholder="Enter amount" required>
+                <button type="submit" class="btn btn-success">Add Income</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-    <h3>Add Income</h3>
-    <form action="{{ url_for('add_income') }}" method="POST">
-        <input type="number" name="amount" placeholder="Enter amount" required>
-        <button type="submit">Add Income</button>
-    </form>
+<!-- Add Expense Form -->
+<div class="card my-3">
+    <div class="card-body">
+        <h3 class="card-title">Add Expense</h3>
+        <form action="{{ url_for('add_expense') }}" method="POST">
+            <div class="input-group mb-3">
+                <input type="number" name="amount" class="form-control" placeholder="Enter amount" required>
+                <button type="submit" class="btn btn-danger">Add Expense</button>
+            </div>
+        </form>
+    </div>
+</div>
 
-    <h3>Add Expense</h3>
-    <form action="{{ url_for('add_expense') }}" method="POST">
-        <input type="number" name="amount" placeholder="Enter amount" required>
-        <button type="submit">Add Expense</button>
-    </form>
-
-    <h3>Transactions</h3>
-    <table border="1">
-        <tr>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Amount</th>
-        </tr>
-        {% for transaction in transactions %}
-        <tr>
-            <td>{{ transaction[0] }}</td>
-            <td>{{ transaction[1] }}</td>
-            <td>GHS {{ transaction[2] }}</td>
-        </tr>
-        {% endfor %}
+<!-- Transactions Table -->
+<div class="table-responsive">
+    <h3 class="my-3">Transactions</h3>
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>Date</th>
+                <th>Type</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for transaction in transactions %}
+            <tr>
+                <td>{{ transaction[0] }}</td>
+                <td>{{ transaction[1] }}</td>
+                <td>GHS {{ transaction[2] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
     </table>
-</body>
-
-</html>
+</div>
+{% endblock %}
