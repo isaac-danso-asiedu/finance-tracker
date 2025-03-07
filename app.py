@@ -1,7 +1,7 @@
 # Top of app.py
 from flask import Flask, render_template, redirect, url_for, request, flash, jsonify # type: ignore
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user # type: ignore
-from database import db, User
+from database import Balance, Transaction, db, User
 import os
 from datetime import datetime
 import sqlite3
@@ -9,85 +9,34 @@ from werkzeug.security import generate_password_hash, check_password_hash # type
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///finance_tracker.db'
-app.secret_key = 'Danso90-Flames'  # Replace with a secure key
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # Avoid warnings
+app.secret_key = 'Danso90-flames'  # Replace with a secure key
 db.init_app(app)
 
 # Ensure all tables are created on startup
 with app.app_context():
     db.create_all()  # Creates 'users' table
     # Call init_db() after db.create_all() to ensure SQLite tables are also created
-    def init_db():
-        conn = sqlite3.connect("finance_tracker.db")
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                date TEXT NOT NULL,
-                type TEXT NOT NULL,
-                amount REAL NOT NULL
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS balance (
-                id INTEGER PRIMARY KEY,
-                amount REAL NOT NULL
-            )
-        ''')
-        cursor.execute("SELECT COUNT(*) FROM balance")
-        if cursor.fetchone()[0] == 0:
-            cursor.execute("INSERT INTO balance (id, amount) VALUES (1, 0)")
-        conn.commit()
-        conn.close()
-    init_db()  # Call this within app context
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
-
-def read_balance():
-    conn = sqlite3.connect("finance_tracker.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT amount FROM balance WHERE id=1")
-    balance = cursor.fetchone()[0]
-    conn.close()
-    return balance
-
-def write_balance(amount):
-    conn = sqlite3.connect("finance_tracker.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE balance SET amount = ? WHERE id = 1", (amount,))
-    conn.commit()
-    conn.close()
-
-def load_transactions():
-    conn = sqlite3.connect("finance_tracker.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT date, type, amount FROM transactions ORDER BY id DESC")
-    transactions = cursor.fetchall()
-    conn.close()
-    return transactions
-
-def log_transaction(transaction_type, amount):
-    conn = sqlite3.connect("finance_tracker.db")
-    cursor = conn.cursor()
-    date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    cursor.execute("INSERT INTO transactions (date, type, amount) VALUES (?, ?, ?)", 
-                   (date, transaction_type, amount))
-    conn.commit()
-    conn.close()
-
-# Home route (unchanged)
+# Home route
 @app.route('/')
+@login_required
 def home():
-    balance = read_balance()
-    transactions = load_transactions()
-    return render_template('index.html', balance=balance, transactions=transactions)
+    # Get or create user's balance
+    user_balance = Balance.query.filter_by(user_id=current_user.id).first()
+    if not user_balance:
+        user_balance = Balance(amount=0.0, user_id=current_user.id)
+        db.session.add(user_balance)
+        db.session.commit()
 
-# Add Income (unchanged from previous AJAX version)
+    transactions = Transaction.query.filter_by(user_id=current_user.id).order_by(Transaction.id.desc()).all()
+    return render_template('index.html', balance=user_balance.amount, transactions=[(t.date, t.type, t.amount) for t in transactions])
+
+# Add Income
 @app.route("/add_income", methods=["POST"])
 @login_required
 def add_income():
@@ -100,24 +49,25 @@ def add_income():
         if amount <= 0:
             return jsonify({'success': False, 'error': 'Amount must be positive'}), 400
         
-        balance = read_balance()
-        new_balance = balance + amount
-        write_balance(new_balance)
-        log_transaction("Income", amount)
+        balance = Balance.query.filter_by(user_id=current_user.id).first()
+        if not balance:
+            balance = Balance(amount=0.0, user_id=current_user.id)
+            db.session.add(balance)
+        
+        balance.amount += amount
+        transaction = Transaction(date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"), type="Income", amount=amount, user_id=current_user.id)
+        db.session.add(transaction)
+        db.session.commit()
         
         return jsonify({
             'success': True,
-            'balance': new_balance,
-            'transaction': {
-                'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'type': 'Income',
-                'amount': amount
-            }
+            'balance': balance.amount,
+            'transaction': {'date': transaction.date, 'type': 'Income', 'amount': amount}
         })
     except ValueError:
         return jsonify({'success': False, 'error': 'Invalid amount'}), 400
 
-# Add Expense (unchanged from previous AJAX version)
+# Add Expense
 @app.route("/add_expense", methods=["POST"])
 @login_required
 def add_expense():
@@ -130,23 +80,24 @@ def add_expense():
         if amount <= 0:
             return jsonify({'success': False, 'error': 'Amount must be positive'}), 400
         
-        balance = read_balance()
-        new_balance = balance - amount
-        write_balance(new_balance)
-        log_transaction("Expense", amount)
+        balance = Balance.query.filter_by(user_id=current_user.id).first()
+        if not balance:
+            balance = Balance(amount=0.0, user_id=current_user.id)
+            db.session.add(balance)
+        
+        balance.amount -= amount
+        transaction = Transaction(date=datetime.now().strftime("%Y-%m-%d %H:%M:%S"), type="Expense", amount=amount, user_id=current_user.id)
+        db.session.add(transaction)
+        db.session.commit()
         
         return jsonify({
             'success': True,
-            'balance': new_balance,
-            'transaction': {
-                'date': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                'type': 'Expense',
-                'amount': amount
-            }
+            'balance': balance.amount,
+            'transaction': {'date': transaction.date, 'type': 'Expense', 'amount': amount}
         })
     except ValueError:
         return jsonify({'success': False, 'error': 'Invalid amount'}), 400
-
+    
 # Register route (modified for AJAX)
 @app.route('/register', methods=['GET', 'POST'])
 def register():
