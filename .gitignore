@@ -1,0 +1,5 @@
+finance_tracker.db
+*.sqlite3
+venv/
+__pycache__/
+*.pyc
