@@ -191,11 +191,25 @@ def logout():
         flash('Logged out successfully', 'success')
         return redirect(url_for('login'))
 
-# Dashboard route (unchanged)
+# Dashboard (updated to show balance and transactions)
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    return render_template('dashboard.html', user=current_user)
+    # Get or create user's balance
+    user_balance = Balance.query.filter_by(user_id=current_user.id).first()
+    if not user_balance:
+        user_balance = Balance(amount=0.0, user_id=current_user.id)
+        db.session.add(user_balance)
+        db.session.commit()
+
+    # Fetch last 10 transactions
+    transactions = Transaction.query.filter_by(user_id=current_user.id)\
+                                    .order_by(Transaction.id.desc())\
+                                    .limit(10).all()
+    return render_template('dashboard.html', 
+                          balance=user_balance.amount, 
+                          transactions=[(t.date, t.type, t.amount) for t in transactions],
+                          user=current_user)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000, debug=False)
