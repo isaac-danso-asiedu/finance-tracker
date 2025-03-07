@@ -1,9 +1,11 @@
 {% extends "base.html" %}
 
-{% block content %}
-<h1 class="text-center">Personal Finance Tracker</h1>
+{% block title %}Dashboard - Finance Tracker{% endblock %}
 
-<h1 class="text-center">Register or Login to Begin</h1>
+{% block content %}
+<h1 class="text-center">Welcome, {{ user.username }}</h1>
+
+<h1 class="text-center">Personal Finance Tracker</h1>
 
 <h2 class="text-center text-success">Current Balance: GHS <span id="balance">{{ balance }}</span></h2>
 
